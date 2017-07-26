@@ -1,0 +1,569 @@
+grammar org.xtext.example.mydsl.MyDsl hidden(WS, ML_COMMENT, SL_COMMENT)
+
+generate myDsl "http://www.xtext.org/example/mydsl/MyDsl"
+
+
+/*
+ * {} 0 ou + -> ()*
+ * [] 0 ou 1 - > ()?
+ *           ->  ()+   
+ */
+import "http://www.eclipse.org/emf/2002/Ecore" as ecore
+
+
+Model:
+  greetings+=Compilation_unit;
+  
+Compilation_unit:
+	{Compilation_unit}name = (Package_statement)? imports += (Import_statement)* typeDeclarations += (Type_declaration)*
+;
+
+Type_declaration:
+	comment = DOC_COMMENT?(classDec = Class_declaration | interfaceDec = Interface_declaration)";"
+;
+
+
+terminal INTERFACE:
+	"interface"
+;
+
+terminal EXTENDS:
+	"extends"
+;
+
+terminal R_CURLY_BRACE:
+	"{"
+;
+
+terminal L_CURLY_BRACE:
+	"}"
+;
+
+Interface_declaration:
+	modifiers += Modifier* INTERFACE interfaceName = ID (EXTENDS interfaceHerdada = Interface_name ("," interfacesHerdadas += (Interface_name))*)? R_CURLY_BRACE (fieldsDeclaration += Field_declaration*) L_CURLY_BRACE
+;
+
+Class_declaration:
+	modifiers += Modifier* "class" className = ID (EXTENDS classHerdada = Class_name)? ("implements" interfaceImplementada = Interface_name ("," interfacesImplementadas += (Interface_name))*)? R_CURLY_BRACE (fieldsDeclaration += Field_declaration*) L_CURLY_BRACE
+;
+
+Field_declaration:
+	(comment = DOC_COMMENT? ( variableDeclaration = Variable_declaration | contructorName = Constructor_declaration | methodName = Method_declaration )) | staticinitializer = Static_initializer | {Field_declaration}";"
+;
+
+Method_declaration:
+	(modifiersMethod += Modifier)* typeMethod=Type nameMethod=ID 
+	lParen = LPAREN parameterListMethod=Parameter_list? rparent = RPAREN ("[""]")* (statementMethod=Statement_block | debug = ";")
+;
+
+Constructor_declaration:
+	(modifiersConstructor += Modifier*) nameConstructor = ID 
+	lParen = LPAREN (parameterListConstructor = Parameter_list)? rparent = RPAREN(statementConstructor = Statement_block)
+;
+	
+Parameter_list:
+	parameter = Parameter ("," parameters += Parameter)*
+;
+
+Parameter:
+type = Type parameterName = ID ("[""]" | "[]")*
+;
+
+Variable_declaration:
+	(modifiersVariable += Modifier)* type = Type nameVariable = Variable_declarator ("," names += Variable_declarator)* ";"
+;
+
+Variable_declarator:
+	nameVariable = ID  (lenVector += "[""]" | lenVector += "[]")*   ("="vari = Variable_initializer)?
+;
+
+Variable_initializer:
+	array_init = Array_initializer | expression = Expression
+;
+
+Array_initializer:
+	{Array_initializer} 
+	R_CURLY_BRACE (variableinitializer += Variable_initializer ("," variableinitializer += Variable_initializer)* (',')?)? L_CURLY_BRACE
+;
+
+
+Type:
+	typeSpecifier = Type_specifier (typeVector += "[]")*
+;
+
+terminal CHAR:
+	"'" . "'"
+;
+
+Type_specifier:
+	primitiveType = ("boolean" 
+      | "byte" 
+      | "char" 
+      | "short" 
+      | "int" 
+      | "float" 
+      | "long" 
+      | "double"
+      | "void") 
+      | className = Class_name
+;
+
+Modifier:
+	(MOD | STATIC)
+;
+
+terminal STATIC: 
+	"static"	
+;
+Static_initializer:
+	static = STATIC name = Statement_block
+;
+
+
+
+Statement_block:
+	{Statement_block} rCurly = R_CURLY_BRACE statments += Statement* lCurly = L_CURLY_BRACE
+;
+//FIXME: resolver Expression em todas operações 
+Statement:
+	variableDeclaration = Variable_declaration |
+	expressionStatement += Expression g=";" |
+	ifStatement = If_statement | 
+	doStatement = Do_Statement| 
+	whileStatement = While_Statement |
+	forStatement = For_Statement |
+	switchStatement = Switch_statement |
+	"synchronized(" expression = Expression rparent = RPAREN syncStatement = Statement|
+	{Statement}ret = "return" (expression = Expression)?  ";" |
+	{Statement}"throw" (expression = Expression)? ";" | 	
+	statementBlock = Statement_block |
+	tryStatement = Try_statement |
+	nameStatement = ID COLON statement = Statement | 	
+	{Statement}"break" name = ID? ";" |
+	{Statement}"continue" name = ID? ";" | 
+	{Statement}";"
+;
+
+//##################################  For
+
+For_Statement:
+	"for" LPAREN (variable=Variable_declaration | ";" | (expression=Expression ";") )
+	(expression2=Expression)? ";"
+	(expression3=Expression)?
+	RPAREN statement=Statement
+;
+
+
+
+
+
+
+
+
+
+
+
+//################################## EXPRESSOES
+
+Expression:
+	=>((numericExpression3=Numeric_Expression_NR) ) aux=Expression_aux	
+	|(logicalExpression=Logical_Expression_NR) aux=Expression_aux
+	|(bitExpression=Bit_Expression_NR) aux=Expression_aux
+	|=>(castExpression=Cast_Expression) aux=Expression_aux
+	|=>(creatingExpression=Creating_Expression) aux=Expression_aux
+	|(literalExpression=Literal_Expression) aux=Expression_aux
+	|(null=NULL) aux=Expression_aux 
+	|(super=SUPER) aux=Expression_aux
+	|(this=THIS) aux=Expression_aux
+	|(name=ID) aux=Expression_aux	 
+;
+
+terminal NULL:
+	"NULL"
+;
+terminal THIS:
+	"this"
+;
+
+terminal SUPER:
+	"super"
+;
+
+Expression_aux :
+	 ((LPAREN argList=Arg_List? RPAREN)) aux=Expression_aux
+	 |(("["expression2=Expression"]")) aux=Expression_aux
+	 |(('.' expression2=Expression)) aux=Expression_aux
+	 |(("," expressionComma=Expression)) aux=Expression_aux 
+	 |((INSTANCEOF (name=Class_name))) aux=Expression_aux
+	 |(sgin=(INCREMENT|DECREMENT) aux=Expression_aux)
+	 |(numericSign=("+" | PLUS_EQUAL | "-" | MINUS_EQUAL | MULTIPLY | MULTIPLY_EQUAL | DIVIDE | DIVIDE_EQUAL | MODULE | MODULE_EQUAL) exp2=Expression aux=Expression_aux)
+	 |(testingSign=( BT | ST | BE | SE | DOUBLE_EQUAL | DIFFERENT ) exp1=Expression aux=Expression_aux)
+	 |((logicalSign=(OR | OR_EQUAL | EXP | EXP_EQUAL | DOUBLE_OR_EQUAL | MODULE | MODULE_EQUAL ) | ampersand=Ampersand_Rule) exp1=Expression aux=Expression_aux)
+	 |(WAT exp1=Expression COLON exp2=Expression aux=Expression_aux)
+	 |(stringSign=("+" | PLUS_EQUAL) exp1=Expression aux=Expression_aux)
+	 |(bitSign=( R_SHIFT_EQUAL | L_SHIFT | R_SHIFT | SUPER_SHIFT ) expressionBit=Expression aux=Expression_aux)
+	 | logicOp = (OR_LOGIC | AND) logicExp = Expression
+	 | {Expression_aux}
+;
+
+terminal INSTANCEOF:
+	"instanceof"
+;
+
+terminal OR_LOGIC: "||";
+terminal AND:"&&";
+
+terminal L_SHIFT:
+	"<<"	
+;
+
+terminal R_SHIFT:
+	">>"
+;
+
+terminal SUPER_SHIFT:
+	">>>"
+;
+
+terminal R_SHIFT_EQUAL:
+	">>="
+;
+
+terminal DOUBLE_OR_EQUAL:
+	"||="
+;
+
+terminal OR:
+	"|"
+;
+
+terminal OR_EQUAL:
+	"|="
+;
+
+terminal EXP:
+	"^"
+;
+
+terminal EXP_EQUAL:
+	"^="
+;
+
+terminal DOUBLE_EQUAL:
+	"=="
+;
+
+terminal DIFFERENT:
+	"!="
+;
+
+terminal BT:
+	">"
+;
+
+terminal ST:
+	"<"
+;
+
+terminal BE:
+	">="
+;
+
+terminal SE:
+	"<="
+;
+
+terminal DIVIDE:
+	"/"
+;
+
+terminal DIVIDE_EQUAL:
+	"/="
+;
+
+terminal MODULE:
+	"%"
+;
+
+terminal MODULE_EQUAL:
+	"%="
+;
+
+terminal PLUS_EQUAL:
+	"+="
+;
+
+terminal MINUS_EQUAL:
+	"-="
+;
+
+terminal MULTIPLY:
+	"*"	
+;
+
+terminal MULTIPLY_EQUAL:
+	"*="	
+;
+
+terminal WAT:
+	"?"
+;
+Ampersand_Rule:
+	(a1=AMPERSAND (a2=AMPERSAND | "=")?)
+;
+
+terminal AMPERSAND:
+	"ampersand"
+;
+Float_Literal:
+	decimalDigits1=DECIMAL_DIGITS '.' (decimalDigits2=DECIMAL_DIGITS)? (exp=EXPOENT_PART)?/*(expoentPart=Expoent_part)?*/ (floatTypeSufix=FLOAT_TYPE_SUFIX)?
+;
+
+terminal EXPONENTIAL:
+	('e'|'e+'|'e-')
+;
+
+Literal_Expression:
+	((exp=HEXA LONG?) | (exp1=DECIMAL_DIGITS LONG?))
+	| exp2=Float_Literal
+	| (string=STRING)
+	| (charLit=CHAR)
+;
+
+terminal LONG:
+	"l"
+;
+
+terminal STRING:
+	'"' -> '"'
+;
+
+Creating_Expression:
+	NEW (
+		(className=Class_name LPAREN argList=Arg_List RPAREN)
+		|(typeSpecifier=Type_specifier ("["expression=Expression"]" | "[]")? ("[""]" | "[]")*)
+		|(LPAREN expression=Expression RPAREN)
+		)
+;
+
+terminal COLON:
+	":"
+;
+
+terminal NEW:
+	"new"	
+;
+
+Cast_Expression:
+	(LPAREN type=Type RPAREN expression=Expression)
+;
+
+Bit_Expression_NR:
+	(NOT expression=Expression)
+;
+
+terminal NOT:
+	"~"
+;
+
+Logical_Expression_NR:
+	(exclamation = EXCLAMATION (expression=Expression | LPAREN expression = Expression RPAREN))
+	| LPAREN expression = Expression RPAREN
+	| true=TRUE
+	| false=FALSE
+;
+
+terminal EXCLAMATION:
+	"!"
+;
+
+terminal FALSE:
+	'false'
+;
+
+terminal TRUE:
+	'true'
+;
+
+Arg_List:
+	expression=Expression ("," expressions+=Expression)*
+;
+
+
+Numeric_Expression_NR:
+	sinal_numeric=("-"|INCREMENT|DECREMENT) expression=Expression
+;
+
+
+terminal DECREMENT:
+	'--'
+;
+
+terminal INCREMENT:
+	'++'
+;
+
+//END EXPRESSIONS	
+	
+
+Switch_statement:
+	{Switch_statement}"switch" lParen = LPAREN expression = Expression rparent = RPAREN R_CURLY_BRACE (("case" expression2 += Expression COLON) | ("default"COLON)
+		| (switchStatements += Statement))*L_CURLY_BRACE
+;
+
+While_Statement:
+	"while("expression = Expression rparent = RPAREN whileStatement = Statement 
+;
+
+Do_Statement:
+	"do" doStatement = Statement "while" lparent = LPAREN /*doWhileExpression = Expression*/ rparent = RPAREN";" 
+;
+
+If_statement:
+	"if" lparen = LPAREN expression = Expression rparent = RPAREN idStatement = Statement (=>"else" elseStatement = Statement)?
+;
+
+Try_statement:
+	"try" tryStatement = Statement 
+	(=>"catch" lParen += LPAREN parameters += Parameter rparent += RPAREN catchStatement += Statement)* 
+	(=>"finally" finallyStatement = Statement)?
+;
+
+//FIXME:força a descer por className --  | interfaceName = Interface_name";"
+Import_statement: 
+	"import" (((className = Class_name";" | pacName = Package_name".*;")))
+;
+
+Class_name:
+	Package_name	
+;
+
+Interface_name:
+	Package_name	
+;
+
+Package_statement:
+	"package" pacName=Package_name ";"
+;
+
+Package_name: 
+	ID Package_name_line
+;
+Package_name_line: 
+	("."ID)*
+;
+
+EXPOENT_PART:
+	EXPONENTIAL (DECIMAL_DIGITS) 
+;
+
+//################TERMINAIS
+
+
+
+terminal HEXA:
+	//| ('0'..'7')* 
+	('0' 'x' ('0'..'9' 'a'..'f')* )
+;
+
+terminal DECIMAL_DIGITS returns ecore::EInt:
+	('0'..'9')+
+;
+
+terminal OCTAL_LITERAL:
+	'0' ('0'..'7')+ INTEGER_TYPE_SUFFIX?
+;
+
+
+terminal FLOAT_TYPE_SUFIX:
+	('f'|'d')	
+;
+
+terminal fragment INTEGER_TYPE_SUFFIX:
+	('l' | 'L')
+;
+
+terminal FLOATING_POINT_LITERAL:
+	('0'..'9')+ '.' ('0'..'9')* EXPONENT? FLOAT_TYPE_SUFFIX?
+	| '.' ('0'..'9')+ EXPONENT? FLOAT_TYPE_SUFFIX?
+	| ('0'..'9')+ EXPONENT FLOAT_TYPE_SUFFIX?
+	| ('0'..'9')+ FLOAT_TYPE_SUFFIX
+;
+
+terminal fragment EXPONENT:
+	('e' | 'E') ('+' | '-')? ('0'..'9')+
+;
+
+terminal fragment FLOAT_TYPE_SUFFIX:
+	('f' | 'F' | 'd' | 'D')
+;
+
+terminal CHARACTER_LITERAL:
+	'\'' (ESCAPE_SEQUENCE | !('\'' | '\\')) '\''
+;
+
+
+
+terminal fragment ESCAPE_SEQUENCE:
+	'\\' ('b' | 't' | 'n' | 'f' | 'r' | '\"' | '\'' | '\\')
+//	| UNICODE_ESCAPE
+	| OCTAL_ESCAPE
+;
+
+terminal fragment OCTAL_ESCAPE:
+	'\\' ('0'..'3') ('0'..'7') ('0'..'7')
+	| '\\' ('0'..'7') ('0'..'7')
+	| '\\' ('0'..'7')
+;
+
+//terminal fragment UNICODE_ESCAPE:
+//	'\\' 'u' HEXA HEXA HEXA HEXA
+//;
+
+terminal RPAREN:
+	")"
+;
+
+terminal LPAREN:
+	"("
+;
+
+terminal MOD:
+	"public" 
+      | "private" 
+      | "protected" 
+      | "final" 
+      | "native" 
+      | "synchronized" 
+      | "abstract" 
+      | "threadsafe" 
+      | "transient"
+;
+
+//override eclipse xtext terminals
+terminal ID:
+	('a'..'z'|'A'..'Z'|'_' | '$')('a'..'z'|'A'..'Z'|'_'|'0'..'9' | '$' | '\u00C0' .. '\uFFFF')*	
+;
+
+terminal ML_COMMENT:
+	"/*" -> "*/"
+;
+
+terminal SL_COMMENT:
+	"//" !("\n" | "\r")* ("\r"? "\n")?
+;
+
+terminal WS:
+	(" " | "\t" | "\r" | "\n")
+;
+
+terminal DOC_COMMENT :
+	"/**"
+;
+
+
+
+
+
+
+
